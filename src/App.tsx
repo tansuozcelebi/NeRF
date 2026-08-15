@@ -102,8 +102,13 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <div>
-          <h1>NeRF Stüdyo</h1>
-          <p>Fotoğraflardan sinirsel ışıma alanı eğitin, hiç çekilmemiş açılardan görüntü üretin.</p>
+          <h1>
+            <span className="brand-mark">KREA</span> NeRF Stüdyo
+          </h1>
+          <p>
+            Fotoğraflardan sinirsel ışıma alanı eğitin, hiç çekilmemiş açılardan gerçek zamanlı
+            görüntü üretin.
+          </p>
         </div>
         <span className={`status status--${nerf.status}`}>{statusLabel(nerf.status)}</span>
       </header>
@@ -291,7 +296,8 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        Eğitim ve görüntü sentezi tamamen tarayıcıda, bir web worker içinde CPU üzerinde çalışır.
+        KREA NeRF Stüdyo · eğitim tarayıcıda bir web worker içinde CPU'da, yeni açı sentezi ekran
+        kartında çalışır.
       </footer>
     </div>
   )
@@ -384,7 +390,7 @@ function ExportRow({ nerf }: { nerf: ReturnType<typeof useNerfWorker> }) {
     try {
       const { data, step, paramCount } = await nerf.exportWeights()
       const blob = new Blob([data.buffer as ArrayBuffer], { type: 'application/octet-stream' })
-      downloadBlob(blob, `nerf-agirliklar-adim${step}-${paramCount}param.bin`)
+      downloadBlob(blob, `krea-nerf-agirliklar-adim${step}-${paramCount}param.bin`)
     } finally {
       setBusy(false)
     }

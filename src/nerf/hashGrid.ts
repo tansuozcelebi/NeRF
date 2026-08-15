@@ -11,8 +11,23 @@
 import { makeRng } from './random'
 import type { HashGridConfig } from './types'
 
-const PRIME_Y = 2654435761
-const PRIME_Z = 805459861
+export const PRIME_Y = 2654435761
+export const PRIME_Z = 805459861
+
+/** Everything needed to reproduce this grid's addressing elsewhere. */
+export interface GridLayout {
+  levels: number
+  featuresPerLevel: number
+  tableSize: number
+  tableMask: number
+  /** Grid resolution per level. */
+  resolutions: number[]
+  /** Start of each level in the table, in entries. */
+  levelOffsets: number[]
+  /** Side length when a level is addressed densely, 0 when it is hashed. */
+  denseSides: number[]
+  entryCount: number
+}
 
 export class HashGrid {
   readonly config: HashGridConfig
@@ -89,6 +104,24 @@ export class HashGrid {
 
   resolutionAt(level: number): number {
     return this.resolutions[level]
+  }
+
+  /**
+   * The per-level addressing scheme, so another implementation (the GPU shader)
+   * can reproduce these lookups exactly. Any drift here shows up as a GPU render
+   * that disagrees with the CPU one.
+   */
+  describeLayout(): GridLayout {
+    return {
+      levels: this.config.levels,
+      featuresPerLevel: this.config.featuresPerLevel,
+      tableSize: this.tableSize,
+      tableMask: this.tableMask,
+      resolutions: Array.from(this.resolutions),
+      levelOffsets: Array.from(this.levelOffset),
+      denseSides: Array.from(this.denseSide),
+      entryCount: this.config.levels * this.tableSize,
+    }
   }
 
   /** Index of the vertex (x, y, z) at `level`, in entries. */

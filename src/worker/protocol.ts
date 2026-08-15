@@ -1,4 +1,5 @@
 /** Message contract between the UI and the training worker. */
+import type { GpuSnapshot } from '../nerf/trainer'
 import type { QualityPreset, TrainStats } from '../nerf/types'
 
 /** A training image shipped to the worker. Buffers are transferred, not copied. */
@@ -46,6 +47,8 @@ export type WorkerRequest =
     }
   | { type: 'setPreviewPose'; pose: Float32Array; fovDegrees: number }
   | { type: 'exportWeights' }
+  /** Ask for the trained weights in the form the GPU renderer consumes. */
+  | { type: 'gpuSnapshot' }
 
 export type WorkerResponse =
   | {
@@ -66,4 +69,5 @@ export type WorkerResponse =
     }
   | { type: 'preview'; step: number; width: number; height: number; rgba: Uint8ClampedArray }
   | { type: 'weights'; data: Float32Array; step: number; paramCount: number }
+  | { type: 'snapshot'; snapshot: GpuSnapshot }
   | { type: 'error'; message: string }

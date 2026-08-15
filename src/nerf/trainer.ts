@@ -15,7 +15,22 @@ import type {
   TrainConfig,
   TrainStats,
 } from './types'
+import type { GridLayout } from './hashGrid'
 import { VolumeRenderer } from './volumeRender'
+
+/** A trained model in the form the GPU renderer consumes. */
+export interface GpuSnapshot {
+  step: number
+  modelConfig: ModelConfig
+  gridLayout: GridLayout
+  gridParams: Float32Array
+  layerWeights: Float32Array
+  occupancy: Uint8Array
+  occupancyResolution: number
+  useOccupancy: boolean
+  aabbSize: number
+  background: [number, number, number]
+}
 
 /** Rays rendered per chunk when synthesising a full image. */
 const RENDER_CHUNK = 512
@@ -81,7 +96,7 @@ export class NerfTrainer {
   }
 
   /** True once the occupancy grid holds a meaningful estimate of the scene. */
-  private get occupancyActive(): boolean {
+  get occupancyActive(): boolean {
     return this.config.occupancyRefreshInterval > 0 && this.step >= OCCUPANCY_WARMUP_STEPS
   }
 
@@ -248,6 +263,26 @@ export class NerfTrainer {
     return { width, height, rgba }
   }
 
+  /**
+   * Everything the GPU renderer needs to reproduce this model: the hash-grid
+   * features, the dense layers and the occupancy mask. All copies — the worker
+   * transfers these away and must keep its own.
+   */
+  exportGpuSnapshot(): GpuSnapshot {
+    return {
+      step: this.step,
+      modelConfig: this.field.config,
+      gridLayout: this.field.grid.describeLayout(),
+      gridParams: new Float32Array(this.field.grid.params),
+      layerWeights: this.field.exportLayerWeights(),
+      occupancy: new Uint8Array(this.occupancy.occupied),
+      occupancyResolution: this.occupancy.resolution,
+      useOccupancy: this.occupancyActive,
+      aabbSize: this.dataset.aabbSize,
+      background: this.dataset.background,
+    }
+  }
+
   /** Re-renders one of the training views, for side-by-side comparison. */
   renderTrainingView(index: number, opts: RenderOptions): RenderResult {
     const view = this.dataset.views[index]
@@ -286,7 +321,7 @@ function writeDepthImage(
   for (let i = 0; i < depth.length; i++) {
     const o = i * 4
     if (acc[i] < 0.1) {
-      rgba[o] = 12; rgba[o + 1] = 14; rgba[o + 2] = 22; rgba[o + 3] = 255
+      rgba[o] = 12; rgba[o + 1] = 8; rgba[o + 2] = 10; rgba[o + 3] = 255
       continue
     }
     const d = depth[i] / Math.max(acc[i], 1e-6)

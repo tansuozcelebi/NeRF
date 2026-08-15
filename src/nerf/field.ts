@@ -243,6 +243,18 @@ export class RadianceField {
     return out
   }
 
+  /** Just the four dense layers, concatenated — the GPU keeps them in their own texture. */
+  exportLayerWeights(): Float32Array {
+    const total = this.layers.reduce((n, l) => n + l.paramCount, 0)
+    const out = new Float32Array(total)
+    let offset = 0
+    for (const l of this.layers) {
+      out.set(l.params, offset)
+      offset += l.params.length
+    }
+    return out
+  }
+
   /** Restores parameters produced by `exportWeights` on an identically configured field. */
   importWeights(data: Float32Array): void {
     if (data.length !== this.paramCount) {
