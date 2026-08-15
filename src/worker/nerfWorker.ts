@@ -106,13 +106,17 @@ function handleRender(request: Extract<WorkerRequest, { type: 'render' }>): void
   )
 }
 
-/** Drains queued render requests, keeping only the newest per size. */
+/**
+ * Renders everything queued while the last training slice was running.
+ *
+ * Every request gets a reply, including ones that look superseded: the UI holds
+ * a promise per request, and silently dropping one would leave the viewer
+ * waiting forever. The client keeps at most one request in flight, so this
+ * cannot pile up.
+ */
 function flushRenderQueue(): void {
   while (renderQueue.length > 0) {
-    const request = renderQueue.shift()!
-    // A newer request for the same size supersedes this one.
-    if (renderQueue.some((r) => r.width === request.width)) continue
-    handleRender(request)
+    handleRender(renderQueue.shift()!)
   }
 }
 

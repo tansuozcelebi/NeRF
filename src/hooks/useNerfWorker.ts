@@ -58,7 +58,13 @@ export function useNerfWorker(): NerfWorkerApi {
   const workerRef = useRef<Worker | null>(null)
   const requestIdRef = useRef(0)
   const pendingRenders = useRef(
-    new Map<number, (value: RenderedImage & { elapsedMs: number }) => void>(),
+    new Map<
+      number,
+      {
+        resolve: (value: RenderedImage & { elapsedMs: number }) => void
+        reject: (reason: Error) => void
+      }
+    >(),
   )
   const pendingWeights = useRef<
     ((value: { data: Float32Array; step: number; paramCount: number }) => void) | null
@@ -75,6 +81,13 @@ export function useNerfWorker(): NerfWorkerApi {
   const [viewCount, setViewCount] = useState(0)
   const [pointsPerStep, setPointsPerStep] = useState(0)
 
+  /** Fails every outstanding render so no caller waits on a dead request. */
+  const rejectPendingRenders = useCallback((reason: string) => {
+    const pending = Array.from(pendingRenders.current.values())
+    pendingRenders.current.clear()
+    for (const { reject } of pending) reject(new Error(reason))
+  }, [])
+
   useEffect(() => {
     const worker = new Worker(new URL('../worker/nerfWorker.ts', import.meta.url), {
       type: 'module',
@@ -85,6 +98,8 @@ export function useNerfWorker(): NerfWorkerApi {
       const message = event.data
       switch (message.type) {
         case 'ready':
+          // A rebuild throws away the model the in-flight renders belonged to.
+          rejectPendingRenders('Model yeniden kuruldu.')
           setThumbnails(message.thumbnails)
           setParamCount(message.paramCount)
           setViewCount(message.viewCount)
@@ -112,10 +127,10 @@ export function useNerfWorker(): NerfWorkerApi {
           setPreviewStep(message.step)
           break
         case 'render': {
-          const resolve = pendingRenders.current.get(message.requestId)
-          if (resolve) {
+          const pending = pendingRenders.current.get(message.requestId)
+          if (pending) {
             pendingRenders.current.delete(message.requestId)
-            resolve({
+            pending.resolve({
               width: message.width,
               height: message.height,
               rgba: message.rgba,
@@ -133,6 +148,8 @@ export function useNerfWorker(): NerfWorkerApi {
           pendingWeights.current = null
           break
         case 'error':
+          // Nothing will answer these now; let the callers recover.
+          rejectPendingRenders(message.message)
           setError(message.message)
           setStatus('hata')
           break
@@ -140,6 +157,7 @@ export function useNerfWorker(): NerfWorkerApi {
     }
 
     worker.onerror = (event) => {
+      rejectPendingRenders(event.message || 'Eğitim çalışanı beklenmedik şekilde durdu.')
       setError(event.message || 'Eğitim çalışanında beklenmeyen bir hata oluştu.')
       setStatus('hata')
     }
@@ -147,9 +165,9 @@ export function useNerfWorker(): NerfWorkerApi {
     return () => {
       worker.terminate()
       workerRef.current = null
-      pendingRenders.current.clear()
+      rejectPendingRenders('Eğitim çalışanı kapatıldı.')
     }
-  }, [])
+  }, [rejectPendingRenders])
 
   const send = useCallback((message: WorkerRequest, transfer: Transferable[] = []) => {
     workerRef.current?.postMessage(message, transfer)
@@ -211,9 +229,9 @@ export function useNerfWorker(): NerfWorkerApi {
 
   const renderView = useCallback<NerfWorkerApi['renderView']>(
     ({ pose, fovDegrees, width, height, mode = 'color', samplesPerRay }) =>
-      new Promise((resolve) => {
+      new Promise((resolve, reject) => {
         const requestId = ++requestIdRef.current
-        pendingRenders.current.set(requestId, resolve)
+        pendingRenders.current.set(requestId, { resolve, reject })
         send({
           type: 'render',
           requestId,

@@ -12,6 +12,13 @@ import { NerfTrainer } from '../trainer'
 import { buildSyntheticDataset, renderSyntheticView } from '../syntheticScene'
 import { DEFAULT_MODEL_CONFIG, DEFAULT_TRAIN_CONFIG } from '../types'
 
+/**
+ * These tests really train a model on the CPU. Locally a run takes well under a
+ * minute; shared CI runners are several times slower, so the limit is generous
+ * on purpose — a timeout here should mean "broken", not "unlucky machine".
+ */
+const TRAINING_TIMEOUT_MS = 300_000
+
 describe('NeRF training', () => {
   it('reduces loss and generalises to an unseen camera angle', () => {
     const dataset = buildSyntheticDataset({ viewCount: 24, resolution: 40, radius: 3.6 })
@@ -58,7 +65,7 @@ describe('NeRF training', () => {
     expect(errorAfter).toBeLessThan(errorBefore * 0.5)
     // 20 dB PSNR on an unseen view after 300 steps is a low bar the model clears.
     expect(-10 * Math.log10(errorAfter)).toBeGreaterThan(20)
-  }, 120_000)
+  }, TRAINING_TIMEOUT_MS)
 
   it('never prunes the volume down to nothing', () => {
     // Regression: the initial density used to sit just below the occupancy
@@ -79,7 +86,7 @@ describe('NeRF training', () => {
       expect(trainer.occupancy.occupiedFraction).toBeGreaterThan(0)
     }
     expect(trainer.lastPointCount).toBeGreaterThan(0)
-  }, 120_000)
+  }, TRAINING_TIMEOUT_MS)
 
   it('prunes empty space once the occupancy grid warms up', () => {
     const dataset = buildSyntheticDataset({ viewCount: 12, resolution: 32 })
@@ -92,5 +99,5 @@ describe('NeRF training', () => {
     for (let i = 0; i < 120; i++) trainer.trainStep()
     expect(trainer.occupancy.occupiedFraction).toBeLessThan(0.9)
     expect(trainer.lastPointCount).toBeGreaterThan(0)
-  }, 120_000)
+  }, TRAINING_TIMEOUT_MS)
 })

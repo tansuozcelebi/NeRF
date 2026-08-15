@@ -8,6 +8,7 @@ import { useNerfWorker } from './hooks/useNerfWorker'
 import { focalFromFov } from './nerf/camera'
 import type { QualityPreset } from './nerf/types'
 import { buildPoses, DEFAULT_POSE_CONFIG, type PoseConfig } from './state/poseConfig'
+import { downloadBlob } from './utils/download'
 import { averageColor, cssToRgb, paintCanvas, rgbToCss, type DecodedPhoto } from './utils/image'
 import type { ImportedPoses } from './utils/transforms'
 import type { SerializedView } from './worker/protocol'
@@ -51,9 +52,18 @@ export default function App() {
     if (next.length > 0) setBackgroundCss(rgbToCss(averageColor(next)))
   }, [])
 
-  const prepare = useCallback(() => {
+  /**
+   * Builds the model from the current source.
+   *
+   * `presetOverride` exists because the quality selector changes the preset and
+   * rebuilds in one gesture: React has not applied the state update yet at that
+   * point, so without the explicit hand-off the rebuild would quietly use the
+   * previous preset.
+   */
+  const prepare = useCallback((presetOverride?: QualityPreset) => {
+    const activePreset = presetOverride ?? preset
     if (source === 'sentetik') {
-      nerf.initSynthetic(preset, {
+      nerf.initSynthetic(activePreset, {
         viewCount: syntheticViews,
         resolution: syntheticResolution,
         radius: syntheticRadius,
@@ -75,7 +85,7 @@ export default function App() {
       cx: photo.width / 2,
       cy: photo.height / 2,
     }))
-    nerf.initPhotos(preset, views, poseConfig.aabbSize, cssToRgb(backgroundCss))
+    nerf.initPhotos(activePreset, views, poseConfig.aabbSize, cssToRgb(backgroundCss))
     setStep('egitim')
   }, [
     source, nerf, preset, syntheticViews, syntheticResolution, built.poses, photos,
@@ -227,7 +237,7 @@ export default function App() {
                     type="button"
                     className="btn btn--primary"
                     disabled={!canPrepare || nerf.status === 'hazirlaniyor'}
-                    onClick={prepare}
+                    onClick={() => prepare()}
                   >
                     Modeli kur
                   </button>
@@ -374,12 +384,7 @@ function ExportRow({ nerf }: { nerf: ReturnType<typeof useNerfWorker> }) {
     try {
       const { data, step, paramCount } = await nerf.exportWeights()
       const blob = new Blob([data.buffer as ArrayBuffer], { type: 'application/octet-stream' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `nerf-agirliklar-adim${step}-${paramCount}param.bin`
-      link.click()
-      URL.revokeObjectURL(url)
+      downloadBlob(blob, `nerf-agirliklar-adim${step}-${paramCount}param.bin`)
     } finally {
       setBusy(false)
     }

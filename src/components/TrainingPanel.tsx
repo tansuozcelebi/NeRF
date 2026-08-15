@@ -7,8 +7,11 @@ interface Props {
   nerf: NerfWorkerApi
   preset: QualityPreset
   onPresetChange: (preset: QualityPreset) => void
-  /** Re-prepares the model, which is required after a preset change. */
-  onRebuild: () => void
+  /**
+   * Re-prepares the model, which is required after a preset change. The preset
+   * is passed explicitly because the caller's state update has not landed yet.
+   */
+  onRebuild: (preset?: QualityPreset) => void
 }
 
 export function TrainingPanel({ nerf, preset, onPresetChange, onRebuild }: Props) {
@@ -28,8 +31,9 @@ export function TrainingPanel({ nerf, preset, onPresetChange, onRebuild }: Props
             value={preset}
             disabled={training}
             onChange={(e) => {
-              onPresetChange(e.target.value as QualityPreset)
-              onRebuild()
+              const next = e.target.value as QualityPreset
+              onPresetChange(next)
+              onRebuild(next)
             }}
           >
             {Object.entries(QUALITY_PRESETS).map(([value, definition]) => (
@@ -50,7 +54,12 @@ export function TrainingPanel({ nerf, preset, onPresetChange, onRebuild }: Props
           >
             {training ? 'Duraklat' : stats ? 'Devam et' : 'Eğitimi başlat'}
           </button>
-          <button type="button" className="btn" disabled={training || !ready} onClick={onRebuild}>
+          <button
+            type="button"
+            className="btn"
+            disabled={training || !ready}
+            onClick={() => onRebuild()}
+          >
             Sıfırla ve yeniden kur
           </button>
         </div>

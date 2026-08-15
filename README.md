@@ -1,5 +1,7 @@
 # NeRF Stüdyo
 
+[![CI](https://github.com/tansuozcelebi/NeRF/actions/workflows/ci.yml/badge.svg)](https://github.com/tansuozcelebi/NeRF/actions/workflows/ci.yml)
+
 Fotoğraflardan **NeRF (Sinirsel Işıma Alanı / Neural Radiance Fields)** eğiten ve hiç
 fotoğraflanmamış açılardan görüntü sentezleyen bir React uygulaması. Eğitim de, görüntü üretimi de
 tamamen tarayıcıda, bir web worker içinde çalışır — sunucu yok, GPU zorunluluğu yok, harici bir
@@ -123,6 +125,9 @@ npm test
   değildir).
 - **Gerileme testi** — doluluk ızgarasının hacmin tamamını budayıp eğitimi kalıcı olarak
   öldürmediği kontrol edilir.
+
+Testler, tip denetimi ve üretim derlemesi her itmede GitHub Actions üzerinde Node 20 ve 22 ile
+çalışır (`.github/workflows/ci.yml`).
 
 ## Sınırlar
 
