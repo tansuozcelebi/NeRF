@@ -1,9 +1,9 @@
 {
-  "name": "nerf-studio",
+  "name": "krea-nerf-studio",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Fotoğraflardan NeRF (Neural Radiance Fields) eğiten ve yeni açılardan görüntü sentezleyen React uygulaması",
+  "description": "KREA NeRF Stüdyo — fotoğraflardan NeRF eğiten, GPU üzerinde gerçek zamanlı yeni açı sentezi yapan React uygulaması",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -14,11 +14,13 @@
   },
   "dependencies": {
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^4.3.4",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",

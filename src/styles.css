@@ -1,16 +1,19 @@
 :root {
-  --bg: #0b0d14;
-  --bg-raised: #141824;
-  --bg-sunken: #0d1018;
-  --line: #262c3d;
-  --text: #e6e9f2;
-  --text-dim: #949cb4;
-  --accent: #6ea8ff;
-  --accent-strong: #3d84ff;
-  --loss: #ff8f6b;
-  --psnr: #6ee7b7;
-  --warn: #ffcc66;
-  --danger: #ff7a7a;
+  /* KREA — kırmızı ve siyah */
+  --bg: #0a0708;
+  --bg-raised: #141013;
+  --bg-sunken: #0d090b;
+  --line: #2c1c21;
+  --line-strong: #4a2229;
+  --text: #f4ecee;
+  --text-dim: #a89299;
+  --accent: #e8192c;
+  --accent-strong: #ff2d3f;
+  --accent-soft: rgba(232, 25, 44, 0.12);
+  --loss: #ff5c47;
+  --psnr: #ffc857;
+  --warn: #ffb020;
+  --danger: #ff4d6d;
   --radius: 10px;
   color-scheme: dark;
 }
@@ -97,7 +100,7 @@ body {
 .stepper-item--active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0b0d14;
+  color: #12080a;
   font-weight: 600;
 }
 
@@ -124,7 +127,7 @@ body {
 }
 
 .error-banner {
-  background: rgba(255, 122, 122, 0.12);
+  background: rgba(255, 77, 109, 0.12);
   border: 1px solid var(--danger);
   color: var(--danger);
   padding: 10px 14px;
@@ -368,7 +371,7 @@ body {
 }
 
 .diagram-box {
-  fill: rgba(110, 168, 255, 0.07);
+  fill: var(--accent-soft);
   stroke: var(--accent);
   stroke-dasharray: 3 3;
   stroke-width: 1;
@@ -687,4 +690,75 @@ body {
     grid-row: auto;
     max-width: 100%;
   }
+}
+
+/* --- brand --- */
+
+.brand-mark {
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  font-weight: 800;
+}
+
+.app-header h1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.app-header::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent) 0%, transparent 55%);
+  pointer-events: none;
+}
+
+.app {
+  position: relative;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.link-button:hover {
+  color: var(--accent-strong);
+}
+
+/* --- GPU viewer --- */
+
+.viewer-canvas--gpu {
+  cursor: grab;
+  touch-action: none;
+}
+
+.viewer-canvas--gpu:active {
+  cursor: grabbing;
+}
+
+.viewer-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(10, 7, 8, 0.72);
+  border: 1px solid var(--line-strong);
+  color: var(--accent);
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.viewer-quality {
+  max-width: 320px;
+  margin: 14px auto 0;
 }

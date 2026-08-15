@@ -9,5 +9,14 @@ export default defineConfig({
   },
   build: {
     target: 'es2020',
+    rollupOptions: {
+      output: {
+        // Three.js is big and changes rarely; keeping it in its own chunk means
+        // app edits do not invalidate it in the browser cache.
+        manualChunks: {
+          three: ['three', 'three/examples/jsm/controls/OrbitControls.js'],
+        },
+      },
+    },
   },
 })

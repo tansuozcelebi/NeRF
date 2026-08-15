@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <title>GPU / CPU eşitlik denetimi</title>
+    <style>
+      body { background: #0a0708; color: #f4ecee; font: 14px system-ui; padding: 20px; }
+      canvas { image-rendering: pixelated; border: 1px solid #2c1c21; width: 192px; height: 192px; }
+      .row { display: flex; gap: 16px; align-items: flex-start; }
+      pre { background: #0d090b; padding: 12px; border-radius: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>GPU / CPU eşitlik denetimi</h1>
+    <p>
+      Aynı model ve aynı kamerayla, işlemci üzerindeki referans uygulama ile ekran kartı
+      shader'ının aynı görüntüyü ürettiğini doğrular.
+    </p>
+    <div class="row">
+      <div><div>CPU</div><canvas id="cpu"></canvas></div>
+      <div><div>GPU</div><canvas id="gpu"></canvas></div>
+    </div>
+    <pre id="result">çalışıyor…</pre>
+    <script type="module" src="./parity.ts"></script>
+  </body>
+</html>

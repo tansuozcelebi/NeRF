@@ -244,6 +244,18 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         else handleRender(request)
         break
       }
+      case 'gpuSnapshot': {
+        if (!trainer) return
+        const snapshot = trainer.exportGpuSnapshot()
+        // The arrays are fresh copies, so transferring them is safe and keeps
+        // multi-megabyte weight updates off the structured-clone path.
+        post({ type: 'snapshot', snapshot }, [
+          snapshot.gridParams.buffer,
+          snapshot.layerWeights.buffer,
+          snapshot.occupancy.buffer,
+        ])
+        break
+      }
       case 'exportWeights': {
         if (!trainer) throw new Error('Dışa aktarılacak model yok.')
         const data = trainer.field.exportWeights()

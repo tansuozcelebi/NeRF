@@ -1,11 +1,13 @@
-# NeRF Stüdyo
+# KREA NeRF Stüdyo
 
 [![CI](https://github.com/tansuozcelebi/NeRF/actions/workflows/ci.yml/badge.svg)](https://github.com/tansuozcelebi/NeRF/actions/workflows/ci.yml)
 
 Fotoğraflardan **NeRF (Sinirsel Işıma Alanı / Neural Radiance Fields)** eğiten ve hiç
-fotoğraflanmamış açılardan görüntü sentezleyen bir React uygulaması. Eğitim de, görüntü üretimi de
-tamamen tarayıcıda, bir web worker içinde çalışır — sunucu yok, GPU zorunluluğu yok, harici bir
-makine öğrenmesi kütüphanesi yok.
+fotoğraflanmamış açılardan görüntü sentezleyen bir React uygulaması. Her şey tarayıcıda çalışır —
+sunucu yok, harici bir makine öğrenmesi kütüphanesi yok:
+
+- **eğitim** bir web worker içinde, işlemci üzerinde,
+- **yeni açı sentezi** ekran kartında, gerçek zamanlı.
 
 NeRF, farklı açılardan çekilmiş 2 boyutlu fotoğrafları kullanarak gerçeğe yakın 3 boyutlu sahneler
 oluşturan bir yapay zekâ tekniğidir. Klasik 3B modellemeden farklı olarak yüzey değil **hacim**
@@ -26,8 +28,9 @@ Uygulamayı açtığınızda dört adım sizi karşılar:
 1. **Kaynak** — sentetik demo sahnesi ya da kendi fotoğraflarınız.
 2. **Kameralar** — her fotoğrafın hangi konumdan çekildiği.
 3. **Eğitim** — kayıp/PSNR grafiği ve canlı önizleme ile ağın eğitimi.
-4. **Keşfet** — sürükleyip döndürerek yeni açılardan görüntü sentezi, derinlik haritası, PNG ve
-   model ağırlığı dışa aktarımı.
+4. **Keşfet** — mouse ile tam orbit (döndür, yaklaş, kaydır), derinlik haritası, PNG ve model
+   ağırlığı dışa aktarımı. Eğitim arka planda sürerken ağırlıklar saniyede bir tazelenir ve sahne
+   gözünüzün önünde keskinleşir.
 
 İlk denemede **sentetik demo sahnesini** kullanın: orada kamera konumları tanım gereği kusursuz
 olduğu için yöntemin ne yapabildiğini en net şekilde gösterir.
@@ -70,6 +73,38 @@ C      = Σ_i w_i · c_i + T_son · arka plan
 
 Bu ifadenin türevi elle çıkarılmıştır; otomatik türev kütüphanesi kullanılmaz.
 
+## Ekran kartında gerçek zamanlı görüntüleme
+
+Eğitilmiş model — hash tablosu, iki MLP ve doluluk ızgarası — dokulara yüklenir ve bir **fragment
+shader** her piksel için hacmi yeniden tarar. Sahne tek bir tam ekran dörtgeninden ibarettir; işin
+tamamı shader'da yapılır. Three.js burada gerçekten iyi olduğu iş için kullanılır: WebGL bağlamını
+yönetmek, dokuları yüklemek ve düzgün bir yörünge kamerası (`OrbitControls`) vermek.
+
+Sonuç, işlemci yolunda kare başına saniyeler süren bir işlemin serbestçe sürüklenebilir hâle
+gelmesidir. Görüntüleyici kare aralığını ölçüp çözünürlüğü kendisi ayarlar; yavaş bir makinede
+piksel sayısını düşürür, hızlı bir makinede tam çözünürlüğe çıkar.
+
+WebGL2 bulunmayan tarayıcılarda uygulama sessizce işlemci görüntüleyicisine düşer ve bunu söyler.
+WebGL'in yazılımla (SwiftShader, llvmpipe) emüle edildiği durumlar da tanınır; orada shader doğru
+çalışır ama çok yavaştır, bu yüzden çözünürlük ve örnek sayısı düşük başlatılır.
+
+**Eğitim hâlâ işlemcide yürür.** Geri yayılım, hash tablosuna dağınık gradyan biriktirmeyi
+gerektirir; bu WebGL2'de güvenilir biçimde yapılamaz (compute shader ve atomik float toplama
+yoktur). GPU'ya taşınan kısım, gösterimi asıl yavaşlatan kısımdır: görüntü üretimi.
+
+### GPU ile CPU aynı sonucu vermek zorunda
+
+Shader, hash kodlamasının ve iki MLP'nin ikinci bir bağımsız uygulamasıdır. İkisinin zamanla
+birbirinden ayrılmasını engelleyen tek şey, aynı modeli aynı kameradan iki yolla da üretip
+pikselleri karşılaştıran bir denetimdir:
+
+```bash
+npm run dev        # sonra /dev/parity.html adresini açın
+```
+
+Bu sayfa, rastgele ağırlıklı ve eğitilmiş iki durumda karşılaştırma yapar. Ölçülen fark: rastgele
+ağırlıklarda **tam olarak 0**, eğitilmiş modelde en fazla **1/255**.
+
 ### Dosya haritası
 
 | Dosya | Sorumluluk |
@@ -83,8 +118,11 @@ Bu ifadenin türevi elle çıkarılmıştır; otomatik türev kütüphanesi kull
 | `src/nerf/trainer.ts` | Işın seçimi, kayıp, optimizasyon adımı, yeni açı üretimi |
 | `src/nerf/camera.ts` | Poz matrisleri, ışın geometrisi, yörünge üreteçleri |
 | `src/nerf/syntheticScene.ts` | Demo sahnesini üreten klasik ışın izleyici |
+| `src/gpu/nerfShader.ts` | Modelin şekli gömülerek üretilen GLSL: hash araması, iki MLP, hacim harmanlama |
+| `src/gpu/GpuNerfRenderer.ts` | Three.js tabanlı gerçek zamanlı görüntüleyici, doku yükleme, yörünge kamerası |
 | `src/worker/` | Eğitim worker'ı ve mesaj sözleşmesi |
 | `src/components/`, `src/hooks/` | React arayüzü |
+| `dev/parity.html` | GPU ile CPU çıktısını karşılaştıran geliştirme denetimi (üretim derlemesinde yer almaz) |
 
 ### Neden bu tasarım tercihleri?
 
@@ -94,22 +132,28 @@ Bu ifadenin türevi elle çıkarılmıştır; otomatik türev kütüphanesi kull
   tipik olarak 3–6 kat hızlanma sağlıyor.
 - **Cauchy seyreklik cezası** yarı saydam "hayalet" birikintilerini bastırıyor; bunlar eğitim
   görüntülerinde iyi görünüp yeni açılarda dağılan tipik NeRF hatasıdır.
-- **Kademeli görüntüleme**: kamerayı sürüklerken kaba kare hemen basılıyor, kamera durunca daha
-  keskin geçişler onu değiştiriyor.
+- **Uyarlanabilir çözünürlük**: kare aralığı ölçülüp piksel sayısı buna göre ayarlanıyor. Ölçüt
+  bilerek kare aralığıdır, çizim çağrısının süresi değil — WebGL komutları kuyruğa atıp hemen
+  döndüğü için çizim süresi shader ne kadar ağır olursa olsun birkaç milisaniye görünür.
 
 ## Başarım
 
-Tek çekirdekli CPU üzerinde ölçülen kabaca değerler (dengeli ön ayar, 512 ışın × 32 örnek):
+Eğitim, tek çekirdekli işlemci üzerinde ölçülen kabaca değerler (dengeli ön ayar, 512 ışın × 32
+örnek):
 
 | Ölçüm | Değer |
 | --- | --- |
 | Eğitim hızı | ~5–7 adım/sn |
 | Tanınabilir sonuç | ~200–400 adım |
 | Belirgin şekilde keskin sonuç | ~1000–3000 adım |
-| Yeni açı karesi (112²) | ~0,3–1 sn |
 | Parametre sayısı | ~790 bin |
 
 `Hızlı` ön ayarı yaklaşık iki kat hızlıdır, `Kaliteli` ön ayarı daha yavaş ama daha detaylıdır.
+
+Görüntüleme tarafında işlemci yolu 112² bir kareyi ~0,3–1 saniyede üretir; GPU yolu aynı işi
+paralel yaptığı için kıyaslanamayacak kadar hızlıdır ve kamera serbestçe sürüklenebilir. Kesin
+kare hızı ekran kartına bağlıdır, bu yüzden bir rakam vermiyoruz: görüntüleyici kare aralığını
+kendisi ölçüp çözünürlüğü ayarlar ve o anki değeri sol üstteki rozette gösterir.
 
 ## Testler
 
@@ -131,7 +175,8 @@ Testler, tip denetimi ve üretim derlemesi her itmede GitHub Actions üzerinde N
 
 ## Sınırlar
 
-- Eğitim CPU üzerinde yürür; bu yüzden çözünürlükler küçük (48–160 piksel) tutulmuştur.
+- Eğitim işlemci üzerinde yürür; bu yüzden eğitim çözünürlükleri küçük (48–160 piksel) tutulmuştur.
+- Gerçek zamanlı görüntüleme WebGL2 ister. Yoksa uygulama işlemci görüntüleyicisine düşer.
 - Kamera pozları ya varsayılır ya da dışarıdan içe aktarılır (yukarıdaki uyarıya bakın).
 - Arka plan tek bir sabit renkle modellenir; karmaşık arka planlı çekimlerde özneyi izole etmek
   daha iyi sonuç verir.

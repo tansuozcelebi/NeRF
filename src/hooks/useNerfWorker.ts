@@ -3,6 +3,7 @@
  * and turns render requests into promises.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { GpuSnapshot } from '../nerf/trainer'
 import type { Mat4, QualityPreset, TrainStats } from '../nerf/types'
 import type { SerializedView, SyntheticOptions, WorkerRequest, WorkerResponse } from '../worker/protocol'
 
@@ -52,6 +53,9 @@ export interface NerfWorkerApi {
     samplesPerRay?: number
   }) => Promise<RenderedImage & { elapsedMs: number }>
   exportWeights: () => Promise<{ data: Float32Array; step: number; paramCount: number }>
+  /** Latest weights uploaded to the GPU renderer; null until one is requested. */
+  snapshot: GpuSnapshot | null
+  requestSnapshot: () => void
 }
 
 export function useNerfWorker(): NerfWorkerApi {
@@ -80,6 +84,7 @@ export function useNerfWorker(): NerfWorkerApi {
   const [paramCount, setParamCount] = useState(0)
   const [viewCount, setViewCount] = useState(0)
   const [pointsPerStep, setPointsPerStep] = useState(0)
+  const [snapshot, setSnapshot] = useState<GpuSnapshot | null>(null)
 
   /** Fails every outstanding render so no caller waits on a dead request. */
   const rejectPendingRenders = useCallback((reason: string) => {
@@ -100,6 +105,7 @@ export function useNerfWorker(): NerfWorkerApi {
         case 'ready':
           // A rebuild throws away the model the in-flight renders belonged to.
           rejectPendingRenders('Model yeniden kuruldu.')
+          setSnapshot(null)
           setThumbnails(message.thumbnails)
           setParamCount(message.paramCount)
           setViewCount(message.viewCount)
@@ -139,6 +145,9 @@ export function useNerfWorker(): NerfWorkerApi {
           }
           break
         }
+        case 'snapshot':
+          setSnapshot(message.snapshot)
+          break
         case 'weights':
           pendingWeights.current?.({
             data: message.data,
@@ -218,6 +227,7 @@ export function useNerfWorker(): NerfWorkerApi {
     setPreviewStep(0)
     setParamCount(0)
     setViewCount(0)
+    setSnapshot(null)
   }, [send])
 
   const setPreviewPose = useCallback(
@@ -245,6 +255,10 @@ export function useNerfWorker(): NerfWorkerApi {
       }),
     [send],
   )
+
+  const requestSnapshot = useCallback(() => {
+    send({ type: 'gpuSnapshot' })
+  }, [send])
 
   const exportWeights = useCallback<NerfWorkerApi['exportWeights']>(
     () =>
@@ -274,5 +288,7 @@ export function useNerfWorker(): NerfWorkerApi {
     setPreviewPose,
     renderView,
     exportWeights,
+    snapshot,
+    requestSnapshot,
   }
 }
