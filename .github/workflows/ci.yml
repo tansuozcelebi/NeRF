@@ -1,8 +1,10 @@
 name: CI
 
+# Dal itmelerinde açık bir PR varsa iş zaten pull_request olayıyla koşar; push'u
+# main ile sınırlamak aynı işin iki kez çalışmasını önler.
 on:
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: [main]
 
