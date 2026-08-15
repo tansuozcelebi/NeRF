@@ -1,0 +1,260 @@
+/**
+ * React binding for the training worker: owns its lifecycle, mirrors its state
+ * and turns render requests into promises.
+ */
+import { useCallback, useEffect, useRef, useState } from 'react'
+import type { Mat4, QualityPreset, TrainStats } from '../nerf/types'
+import type { SerializedView, SyntheticOptions, WorkerRequest, WorkerResponse } from '../worker/protocol'
+
+export type WorkerStatus = 'bos' | 'hazirlaniyor' | 'hazir' | 'egitiliyor' | 'hata'
+
+export interface RenderedImage {
+  width: number
+  height: number
+  rgba: Uint8ClampedArray
+}
+
+export interface Thumbnail extends RenderedImage {
+  id: string
+}
+
+/** Number of points kept in the loss history shown on the chart. */
+const HISTORY_LIMIT = 400
+
+export interface NerfWorkerApi {
+  status: WorkerStatus
+  error: string | null
+  stats: TrainStats | null
+  history: Array<{ step: number; loss: number; psnr: number }>
+  thumbnails: Thumbnail[]
+  preview: RenderedImage | null
+  previewStep: number
+  paramCount: number
+  viewCount: number
+  pointsPerStep: number
+  initSynthetic: (preset: QualityPreset, options: SyntheticOptions) => void
+  initPhotos: (
+    preset: QualityPreset,
+    views: SerializedView[],
+    aabbSize: number,
+    background: [number, number, number],
+  ) => void
+  start: () => void
+  pause: () => void
+  reset: () => void
+  setPreviewPose: (pose: Mat4, fovDegrees: number) => void
+  renderView: (options: {
+    pose: Mat4
+    fovDegrees: number
+    width: number
+    height: number
+    mode?: 'color' | 'depth'
+    samplesPerRay?: number
+  }) => Promise<RenderedImage & { elapsedMs: number }>
+  exportWeights: () => Promise<{ data: Float32Array; step: number; paramCount: number }>
+}
+
+export function useNerfWorker(): NerfWorkerApi {
+  const workerRef = useRef<Worker | null>(null)
+  const requestIdRef = useRef(0)
+  const pendingRenders = useRef(
+    new Map<number, (value: RenderedImage & { elapsedMs: number }) => void>(),
+  )
+  const pendingWeights = useRef<
+    ((value: { data: Float32Array; step: number; paramCount: number }) => void) | null
+  >(null)
+
+  const [status, setStatus] = useState<WorkerStatus>('bos')
+  const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<TrainStats | null>(null)
+  const [history, setHistory] = useState<Array<{ step: number; loss: number; psnr: number }>>([])
+  const [thumbnails, setThumbnails] = useState<Thumbnail[]>([])
+  const [preview, setPreview] = useState<RenderedImage | null>(null)
+  const [previewStep, setPreviewStep] = useState(0)
+  const [paramCount, setParamCount] = useState(0)
+  const [viewCount, setViewCount] = useState(0)
+  const [pointsPerStep, setPointsPerStep] = useState(0)
+
+  useEffect(() => {
+    const worker = new Worker(new URL('../worker/nerfWorker.ts', import.meta.url), {
+      type: 'module',
+    })
+    workerRef.current = worker
+
+    worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
+      const message = event.data
+      switch (message.type) {
+        case 'ready':
+          setThumbnails(message.thumbnails)
+          setParamCount(message.paramCount)
+          setViewCount(message.viewCount)
+          setStatus('hazir')
+          setStats(null)
+          setHistory([])
+          setPreview(null)
+          setPreviewStep(0)
+          setError(null)
+          break
+        case 'stats':
+          setStats(message.stats)
+          setPointsPerStep(message.pointsPerStep)
+          setStatus(message.running ? 'egitiliyor' : 'hazir')
+          setHistory((previous) => {
+            const next = [
+              ...previous,
+              { step: message.stats.step, loss: message.stats.loss, psnr: message.stats.psnr },
+            ]
+            return next.length > HISTORY_LIMIT ? next.slice(next.length - HISTORY_LIMIT) : next
+          })
+          break
+        case 'preview':
+          setPreview({ width: message.width, height: message.height, rgba: message.rgba })
+          setPreviewStep(message.step)
+          break
+        case 'render': {
+          const resolve = pendingRenders.current.get(message.requestId)
+          if (resolve) {
+            pendingRenders.current.delete(message.requestId)
+            resolve({
+              width: message.width,
+              height: message.height,
+              rgba: message.rgba,
+              elapsedMs: message.elapsedMs,
+            })
+          }
+          break
+        }
+        case 'weights':
+          pendingWeights.current?.({
+            data: message.data,
+            step: message.step,
+            paramCount: message.paramCount,
+          })
+          pendingWeights.current = null
+          break
+        case 'error':
+          setError(message.message)
+          setStatus('hata')
+          break
+      }
+    }
+
+    worker.onerror = (event) => {
+      setError(event.message || 'Eğitim çalışanında beklenmeyen bir hata oluştu.')
+      setStatus('hata')
+    }
+
+    return () => {
+      worker.terminate()
+      workerRef.current = null
+      pendingRenders.current.clear()
+    }
+  }, [])
+
+  const send = useCallback((message: WorkerRequest, transfer: Transferable[] = []) => {
+    workerRef.current?.postMessage(message, transfer)
+  }, [])
+
+  const initSynthetic = useCallback(
+    (preset: QualityPreset, options: SyntheticOptions) => {
+      setStatus('hazirlaniyor')
+      setError(null)
+      send({ type: 'initSynthetic', preset, options })
+    },
+    [send],
+  )
+
+  const initPhotos = useCallback(
+    (
+      preset: QualityPreset,
+      views: SerializedView[],
+      aabbSize: number,
+      background: [number, number, number],
+    ) => {
+      setStatus('hazirlaniyor')
+      setError(null)
+      // Buffers are transferred; the caller must not reuse them afterwards.
+      const transfer = views.flatMap((v) => [v.pixels.buffer, v.pose.buffer])
+      send({ type: 'initPhotos', preset, views, aabbSize, background }, transfer)
+    },
+    [send],
+  )
+
+  const start = useCallback(() => {
+    setStatus('egitiliyor')
+    send({ type: 'start' })
+  }, [send])
+
+  const pause = useCallback(() => {
+    setStatus('hazir')
+    send({ type: 'pause' })
+  }, [send])
+
+  const reset = useCallback(() => {
+    send({ type: 'reset' })
+    setStatus('bos')
+    setStats(null)
+    setHistory([])
+    setThumbnails([])
+    setPreview(null)
+    setPreviewStep(0)
+    setParamCount(0)
+    setViewCount(0)
+  }, [send])
+
+  const setPreviewPose = useCallback(
+    (pose: Mat4, fovDegrees: number) => {
+      send({ type: 'setPreviewPose', pose: new Float32Array(pose), fovDegrees })
+    },
+    [send],
+  )
+
+  const renderView = useCallback<NerfWorkerApi['renderView']>(
+    ({ pose, fovDegrees, width, height, mode = 'color', samplesPerRay }) =>
+      new Promise((resolve) => {
+        const requestId = ++requestIdRef.current
+        pendingRenders.current.set(requestId, resolve)
+        send({
+          type: 'render',
+          requestId,
+          pose: new Float32Array(pose),
+          fovDegrees,
+          width,
+          height,
+          mode,
+          samplesPerRay,
+        })
+      }),
+    [send],
+  )
+
+  const exportWeights = useCallback<NerfWorkerApi['exportWeights']>(
+    () =>
+      new Promise((resolve) => {
+        pendingWeights.current = resolve
+        send({ type: 'exportWeights' })
+      }),
+    [send],
+  )
+
+  return {
+    status,
+    error,
+    stats,
+    history,
+    thumbnails,
+    preview,
+    previewStep,
+    paramCount,
+    viewCount,
+    pointsPerStep,
+    initSynthetic,
+    initPhotos,
+    start,
+    pause,
+    reset,
+    setPreviewPose,
+    renderView,
+    exportWeights,
+  }
+}
