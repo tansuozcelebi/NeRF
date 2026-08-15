@@ -1,0 +1,56 @@
+name: CI
+
+# Dal itmelerinde açık bir PR varsa iş zaten pull_request olayıyla koşar; push'u
+# main ile sınırlamak aynı işin iki kez çalışmasını önler.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A new push to the same branch makes an in-flight run obsolete.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Tip denetimi, test ve derleme
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node ${{ matrix.node-version }} kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Bağımlılıkları yükle
+        run: npm ci
+
+      - name: Tip denetimi
+        run: npx tsc -b
+
+      # Gradyan denetimleri ve sentetik sahnede uçtan uca eğitim. Eğitim testleri
+      # CPU üzerinde çalıştığı için koşucu hızına göre birkaç dakika sürebilir.
+      - name: Testler
+        run: npm test
+
+      - name: Üretim derlemesi
+        run: npm run build
+
+      - name: Derleme çıktısını yükle
+        if: matrix.node-version == 22
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
