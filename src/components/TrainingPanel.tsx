@@ -73,7 +73,18 @@ export function TrainingPanel({ nerf, preset, onPresetChange, onRebuild }: Props
       <dl className="stat-grid">
         <Stat label="Adım" value={stats ? stats.step.toLocaleString('tr') : '0'} />
         <Stat label="Kayıp (MSE)" value={stats ? stats.loss.toExponential(2) : '—'} />
-        <Stat label="PSNR" value={stats ? `${stats.psnr.toFixed(2)} dB` : '—'} />
+        <Stat
+          label="Eğitim PSNR"
+          value={stats ? `${stats.psnr.toFixed(2)} dB` : '—'}
+          hint="Modelin gördüğü karelerdeki keskinlik. Tek başına ezberlemeyi de gösterebilir."
+        />
+        <Stat
+          label="Doğrulama PSNR"
+          value={
+            stats && stats.validationPsnr !== null ? `${stats.validationPsnr.toFixed(2)} dB` : '—'
+          }
+          hint="Eğitimde hiç kullanılmayan karelerdeki keskinlik. Asıl bakılması gereken sayı budur."
+        />
         <Stat
           label="Hız"
           value={stepsPerSecond > 0 ? `${stepsPerSecond.toFixed(1)} adım/sn` : '—'}

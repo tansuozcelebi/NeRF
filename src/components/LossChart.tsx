@@ -2,6 +2,8 @@ interface Point {
   step: number
   loss: number
   psnr: number
+  /** PSNR on held-out views; null before the first evaluation. */
+  validationPsnr: number | null
 }
 
 interface Props {
@@ -21,7 +23,7 @@ export function LossChart({ history }: Props) {
   if (history.length < 2) {
     return (
       <div className="chart-empty">
-        Eğitim başladığında kayıp (loss) ve PSNR eğrisi burada belirecek.
+        Eğitim başladığında kayıp (loss), eğitim PSNR ve doğrulama PSNR eğrileri burada belirecek.
       </div>
     )
   }
@@ -38,7 +40,10 @@ export function LossChart({ history }: Props) {
   const logMax = Math.log10(maxLoss)
   const logSpan = Math.max(1e-6, logMax - logMin)
 
-  const psnrs = history.map((h) => h.psnr)
+  // Both PSNR series share one axis so the gap between them is readable — that
+  // gap is the overfitting, and it is the point of showing them together.
+  const validation = history.filter((h) => h.validationPsnr !== null)
+  const psnrs = history.map((h) => h.psnr).concat(validation.map((h) => h.validationPsnr as number))
   const minPsnr = Math.min(...psnrs)
   const maxPsnr = Math.max(...psnrs)
   const psnrSpan = Math.max(1e-6, maxPsnr - minPsnr)
@@ -52,7 +57,11 @@ export function LossChart({ history }: Props) {
 
   const lossPath = history.map((h, i) => `${i === 0 ? 'M' : 'L'}${x(h.step)},${yLoss(h.loss)}`).join(' ')
   const psnrPath = history.map((h, i) => `${i === 0 ? 'M' : 'L'}${x(h.step)},${yPsnr(h.psnr)}`).join(' ')
+  const valPath = validation
+    .map((h, i) => `${i === 0 ? 'M' : 'L'}${x(h.step)},${yPsnr(h.validationPsnr as number)}`)
+    .join(' ')
   const last = history[history.length - 1]
+  const lastValidation = validation[validation.length - 1]
 
   return (
     <figure className="chart">
@@ -62,6 +71,7 @@ export function LossChart({ history }: Props) {
           className="chart-axis"
         />
         <path d={psnrPath} className="chart-line chart-line--psnr" />
+        {valPath && <path d={valPath} className="chart-line chart-line--validation" />}
         <path d={lossPath} className="chart-line chart-line--loss" />
         <text x={PAD.left} y={HEIGHT - 6} className="chart-tick">adım {minStep}</text>
         <text x={PAD.left + plotW} y={HEIGHT - 6} className="chart-tick" textAnchor="end">
@@ -84,7 +94,12 @@ export function LossChart({ history }: Props) {
       </svg>
       <figcaption>
         <span className="legend legend--loss">kayıp {last.loss.toExponential(2)}</span>
-        <span className="legend legend--psnr">PSNR {last.psnr.toFixed(2)} dB</span>
+        <span className="legend legend--psnr">eğitim PSNR {last.psnr.toFixed(2)} dB</span>
+        {lastValidation && (
+          <span className="legend legend--validation">
+            doğrulama PSNR {(lastValidation.validationPsnr as number).toFixed(2)} dB
+          </span>
+        )}
       </figcaption>
     </figure>
   )

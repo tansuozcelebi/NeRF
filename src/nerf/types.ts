@@ -53,6 +53,15 @@ export interface TrainConfig {
   sparsityWeight: number
   /** Steps between occupancy-grid refreshes; 0 disables pruning. */
   occupancyRefreshInterval: number
+  /**
+   * Every Nth view is kept out of training and used only for evaluation.
+   * 0 disables the split.
+   *
+   * Without this the only number on screen is the training loss, and a NeRF can
+   * drive that down while producing a mess from any angle it was not shown —
+   * which is exactly the failure the method is supposed to avoid.
+   */
+  holdOutEvery: number
 }
 
 export interface ModelConfig {
@@ -70,6 +79,12 @@ export interface TrainStats {
   step: number
   loss: number
   psnr: number
+  /**
+   * PSNR on views the model has never been trained on, or null when the dataset
+   * is too small to hold any out. This is the number that says whether the
+   * reconstruction generalises; `psnr` above only says it memorised.
+   */
+  validationPsnr: number | null
   /** Fraction of occupancy-grid cells considered non-empty. */
   occupancy: number
   /** Milliseconds spent in the last optimisation step. */
@@ -104,6 +119,7 @@ export const DEFAULT_TRAIN_CONFIG: TrainConfig = {
   learningRate: 0.01,
   sparsityWeight: 5e-4,
   occupancyRefreshInterval: 16,
+  holdOutEvery: 8,
 }
 
 export type QualityPreset = 'hizli' | 'dengeli' | 'kaliteli'

@@ -3,7 +3,7 @@
  * and turns render requests into promises.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { GpuSnapshot } from '../nerf/trainer'
+import type { ExportedMesh, GpuSnapshot, MeshExportOptions } from '../nerf/trainer'
 import type { Mat4, QualityPreset, TrainStats } from '../nerf/types'
 import type { SerializedView, SyntheticOptions, WorkerRequest, WorkerResponse } from '../worker/protocol'
 
@@ -26,7 +26,7 @@ export interface NerfWorkerApi {
   status: WorkerStatus
   error: string | null
   stats: TrainStats | null
-  history: Array<{ step: number; loss: number; psnr: number }>
+  history: Array<{ step: number; loss: number; psnr: number; validationPsnr: number | null }>
   thumbnails: Thumbnail[]
   preview: RenderedImage | null
   previewStep: number
@@ -56,6 +56,11 @@ export interface NerfWorkerApi {
   /** Latest weights uploaded to the GPU renderer; null until one is requested. */
   snapshot: GpuSnapshot | null
   requestSnapshot: () => void
+  /** Pulls a triangle mesh out of the density field. Reports sampling progress. */
+  extractMesh: (
+    options: Omit<MeshExportOptions, 'onProgress'>,
+    onProgress?: (fraction: number) => void,
+  ) => Promise<ExportedMesh>
 }
 
 export function useNerfWorker(): NerfWorkerApi {
@@ -70,6 +75,11 @@ export function useNerfWorker(): NerfWorkerApi {
       }
     >(),
   )
+  const pendingMesh = useRef<{
+    resolve: (mesh: ExportedMesh) => void
+    reject: (reason: Error) => void
+    onProgress?: (fraction: number) => void
+  } | null>(null)
   const pendingWeights = useRef<
     ((value: { data: Float32Array; step: number; paramCount: number }) => void) | null
   >(null)
@@ -77,7 +87,7 @@ export function useNerfWorker(): NerfWorkerApi {
   const [status, setStatus] = useState<WorkerStatus>('bos')
   const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState<TrainStats | null>(null)
-  const [history, setHistory] = useState<Array<{ step: number; loss: number; psnr: number }>>([])
+  const [history, setHistory] = useState<Array<{ step: number; loss: number; psnr: number; validationPsnr: number | null }>>([])
   const [thumbnails, setThumbnails] = useState<Thumbnail[]>([])
   const [preview, setPreview] = useState<RenderedImage | null>(null)
   const [previewStep, setPreviewStep] = useState(0)
@@ -123,7 +133,12 @@ export function useNerfWorker(): NerfWorkerApi {
           setHistory((previous) => {
             const next = [
               ...previous,
-              { step: message.stats.step, loss: message.stats.loss, psnr: message.stats.psnr },
+              {
+                step: message.stats.step,
+                loss: message.stats.loss,
+                psnr: message.stats.psnr,
+                validationPsnr: message.stats.validationPsnr,
+              },
             ]
             return next.length > HISTORY_LIMIT ? next.slice(next.length - HISTORY_LIMIT) : next
           })
@@ -148,6 +163,13 @@ export function useNerfWorker(): NerfWorkerApi {
         case 'snapshot':
           setSnapshot(message.snapshot)
           break
+        case 'meshProgress':
+          pendingMesh.current?.onProgress?.(message.fraction)
+          break
+        case 'mesh':
+          pendingMesh.current?.resolve(message.mesh)
+          pendingMesh.current = null
+          break
         case 'weights':
           pendingWeights.current?.({
             data: message.data,
@@ -158,6 +180,8 @@ export function useNerfWorker(): NerfWorkerApi {
           break
         case 'error':
           // Nothing will answer these now; let the callers recover.
+          pendingMesh.current?.reject(new Error(message.message))
+          pendingMesh.current = null
           rejectPendingRenders(message.message)
           setError(message.message)
           setStatus('hata')
@@ -260,6 +284,15 @@ export function useNerfWorker(): NerfWorkerApi {
     send({ type: 'gpuSnapshot' })
   }, [send])
 
+  const extractMesh = useCallback<NerfWorkerApi['extractMesh']>(
+    (options, onProgress) =>
+      new Promise((resolve, reject) => {
+        pendingMesh.current = { resolve, reject, onProgress }
+        send({ type: 'extractMesh', options })
+      }),
+    [send],
+  )
+
   const exportWeights = useCallback<NerfWorkerApi['exportWeights']>(
     () =>
       new Promise((resolve) => {
@@ -290,5 +323,6 @@ export function useNerfWorker(): NerfWorkerApi {
     exportWeights,
     snapshot,
     requestSnapshot,
+    extractMesh,
   }
 }

@@ -17,6 +17,8 @@ interface Props {
   nerf: NerfWorkerApi
   fovDegrees: number
   radius: number
+  /** World-space box the renderer traverses; trims floaters out of the view. */
+  crop?: { min: [number, number, number]; max: [number, number, number] }
 }
 
 /** How often the viewer pulls fresh weights while training is running. */
@@ -50,7 +52,7 @@ const EXPORT_SCALE = 2
 /** Frames between UI updates of the fps readout — one per frame would thrash React. */
 const FPS_UPDATE_EVERY = 15
 
-export function GpuViewer({ nerf, fovDegrees, radius }: Props) {
+export function GpuViewer({ nerf, fovDegrees, radius, crop }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rendererRef = useRef<GpuNerfRenderer | null>(null)
 
@@ -151,6 +153,10 @@ export function GpuViewer({ nerf, fovDegrees, radius }: Props) {
   useEffect(() => {
     if (snapshot && rendererRef.current) rendererRef.current.setSnapshot(snapshot)
   }, [snapshot])
+
+  useEffect(() => {
+    if (crop && rendererRef.current) rendererRef.current.setBounds(crop.min, crop.max)
+  }, [crop, snapshot])
 
   // Keep pulling fresh weights while the model is still learning.
   useEffect(() => {
