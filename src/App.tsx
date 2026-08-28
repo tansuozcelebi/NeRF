@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { CameraSetup } from './components/CameraSetup'
+import { CropControls, fullCrop, type CropBox } from './components/CropControls'
+import { MeshExportPanel } from './components/MeshExportPanel'
 import { InfoPanel } from './components/InfoPanel'
 import { PhotoUploader } from './components/PhotoUploader'
 import { TrainingPanel } from './components/TrainingPanel'
@@ -11,6 +13,7 @@ import { buildPoses, DEFAULT_POSE_CONFIG, type PoseConfig } from './state/poseCo
 import { downloadBlob } from './utils/download'
 import { averageColor, cssToRgb, paintCanvas, rgbToCss, type DecodedPhoto } from './utils/image'
 import type { ImportedPoses } from './utils/transforms'
+import { SYNTHETIC_AABB } from './nerf/syntheticScene'
 import type { SerializedView } from './worker/protocol'
 
 type Source = 'sentetik' | 'foto'
@@ -36,6 +39,7 @@ export default function App() {
   const [imported, setImported] = useState<ImportedPoses | null>(null)
   const [backgroundCss, setBackgroundCss] = useState('#101018')
 
+  const [crop, setCrop] = useState<CropBox | null>(null)
   const [syntheticViews, setSyntheticViews] = useState(36)
   const [syntheticResolution, setSyntheticResolution] = useState(96)
   const syntheticRadius = 3.6
@@ -62,6 +66,7 @@ export default function App() {
    */
   const prepare = useCallback((presetOverride?: QualityPreset) => {
     const activePreset = presetOverride ?? preset
+    setCrop(null)
     if (source === 'sentetik') {
       nerf.initSynthetic(activePreset, {
         viewCount: syntheticViews,
@@ -97,6 +102,8 @@ export default function App() {
   const modelReady = nerf.status === 'hazir' || nerf.status === 'egitiliyor'
   const viewerFov = source === 'sentetik' ? syntheticFov : poseConfig.fovDegrees
   const viewerRadius = source === 'sentetik' ? syntheticRadius : poseConfig.radius
+  const sceneAabb = source === 'sentetik' ? SYNTHETIC_AABB : poseConfig.aabbSize
+  const activeCrop = crop ?? fullCrop(sceneAabb)
 
   return (
     <div className="app">
@@ -282,7 +289,9 @@ export default function App() {
         {step === 'kesfet' && (
           <section>
             <h2>Yeni açı sentezi</h2>
-            <Viewer nerf={nerf} fovDegrees={viewerFov} radius={viewerRadius} />
+            <Viewer nerf={nerf} fovDegrees={viewerFov} radius={viewerRadius} crop={activeCrop} />
+            <CropControls aabbSize={sceneAabb} crop={activeCrop} onChange={setCrop} />
+            <MeshExportPanel nerf={nerf} crop={activeCrop} />
             <ExportRow nerf={nerf} />
           </section>
         )}

@@ -67,6 +67,45 @@ describe('NeRF training', () => {
     expect(-10 * Math.log10(errorAfter)).toBeGreaterThan(20)
   }, TRAINING_TIMEOUT_MS)
 
+  it('keeps held-out views out of training and scores them separately', () => {
+    const dataset = buildSyntheticDataset({ viewCount: 24, resolution: 32 })
+    const trainer = new NerfTrainer(dataset, DEFAULT_MODEL_CONFIG, {
+      ...DEFAULT_TRAIN_CONFIG,
+      raysPerStep: 256,
+      samplesPerRay: 24,
+      holdOutEvery: 8,
+    })
+
+    expect(trainer.holdOutViews.length).toBe(3)
+    expect(trainer.trainViews.length).toBe(21)
+    // No view may appear on both sides of the split.
+    const overlap = trainer.trainViews.filter((i) => trainer.holdOutViews.includes(i))
+    expect(overlap).toHaveLength(0)
+
+    const before = trainer.validate() as number
+    for (let i = 0; i < 250; i++) trainer.trainStep()
+    const after = trainer.validate() as number
+
+    // The held-out views are never trained on, so improvement there is real
+    // generalisation rather than memorisation.
+    expect(after).toBeLessThan(before * 0.5)
+    const stats = trainer.trainStep()
+    expect(stats.validationPsnr).not.toBeNull()
+    // Training views are fitted directly, so they should score at least as well.
+    expect(stats.psnr).toBeGreaterThan((stats.validationPsnr as number) - 1)
+  }, TRAINING_TIMEOUT_MS)
+
+  it('skips the split when there are too few views to spare any', () => {
+    const dataset = buildSyntheticDataset({ viewCount: 4, resolution: 24 })
+    const trainer = new NerfTrainer(dataset, DEFAULT_MODEL_CONFIG, {
+      ...DEFAULT_TRAIN_CONFIG, raysPerStep: 128, samplesPerRay: 16, holdOutEvery: 8,
+    })
+    expect(trainer.holdOutViews).toHaveLength(0)
+    expect(trainer.trainViews).toHaveLength(4)
+    expect(trainer.validate()).toBeNull()
+    expect(trainer.trainStep().validationPsnr).toBeNull()
+  }, TRAINING_TIMEOUT_MS)
+
   it('never prunes the volume down to nothing', () => {
     // Regression: the initial density used to sit just below the occupancy
     // cutoff, so the first refresh could mark every cell empty. With no cells

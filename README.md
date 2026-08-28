@@ -28,9 +28,9 @@ Uygulamayı açtığınızda dört adım sizi karşılar:
 1. **Kaynak** — sentetik demo sahnesi ya da kendi fotoğraflarınız.
 2. **Kameralar** — her fotoğrafın hangi konumdan çekildiği.
 3. **Eğitim** — kayıp/PSNR grafiği ve canlı önizleme ile ağın eğitimi.
-4. **Keşfet** — mouse ile tam orbit (döndür, yaklaş, kaydır), derinlik haritası, PNG ve model
-   ağırlığı dışa aktarımı. Eğitim arka planda sürerken ağırlıklar saniyede bir tazelenir ve sahne
-   gözünüzün önünde keskinleşir.
+4. **Keşfet** — mouse ile tam orbit (döndür, yaklaş, kaydır), derinlik haritası, kırpma kutusu,
+   3B model (.ply), PNG ve model ağırlığı dışa aktarımı. Eğitim arka planda sürerken ağırlıklar
+   saniyede bir tazelenir ve sahne gözünüzün önünde keskinleşir.
 
 İlk denemede **sentetik demo sahnesini** kullanın: orada kamera konumları tanım gereği kusursuz
 olduğu için yöntemin ne yapabildiğini en net şekilde gösterir.
@@ -72,6 +72,47 @@ C      = Σ_i w_i · c_i + T_son · arka plan
 ```
 
 Bu ifadenin türevi elle çıkarılmıştır; otomatik türev kütüphanesi kullanılmaz.
+
+## Doğrulama: ezberledi mi, öğrendi mi?
+
+Görüntülerin sekizde biri eğitimden tamamen çıkarılır ve yalnızca ölçüm için kullanılır. Panoda iki
+sayı yan yana durur:
+
+- **Eğitim PSNR** — modelin gördüğü karelerdeki keskinlik. Tek başına ezberlemeyi de gösterebilir.
+- **Doğrulama PSNR** — modelin *hiç görmediği* karelerdeki keskinlik. Asıl bakılması gereken sayı
+  budur.
+
+Aradaki fark aşırı uyumun (overfitting) ölçüsüdür ve grafikte kesikli çizgi olarak izlenebilir. Bir
+NeRF eğitim kaybını düşürürken yeni açılardan berbat görüntü üretebilir; bu ayrım olmadan bunu fark
+etmenin yolu yoktur. Sekiz kareden az veri varsa ayırma atlanır ve sayı boş kalır.
+
+## 3B model olarak dışa aktarma
+
+NeRF geometriyi yüzey olarak değil sürekli bir yoğunluk fonksiyonu olarak saklar — sisi, saçı ve
+camı iyi becermesinin sebebi de, sonucu Blender'da açamamanızın sebebi de budur. Keşfet sekmesindeki
+dışa aktarma bu köprüyü kurar:
+
+1. Yoğunluk alanı düzenli bir ızgarada örneklenir (64³–160³),
+2. yoğunluğun eşiği aştığı yüzey üçgenlere çevrilir,
+3. her köşe, renk ağına "bu noktaya dik baksam ne görürdüm" diye sorularak boyanır,
+4. sonuç renkli **PLY** olarak inilir — Blender, MeshLab, CloudCompare ve Houdini doğrudan okur.
+
+Eşik otomatik seçilir (örneklerin yüksek bir yüzdeliği), çünkü yoğunluk sınırsız bir büyüklüktür ve
+ölçeği sahneden sahneye değişir; kaydırıcı bu öneriyi ölçekler.
+
+Yüzey çıkarımı **marching cubes değil marching tetrahedra** kullanır. Marching cubes 256×16'lık bir
+üçgen tablosu ister ve yanlış yazılmış tek bir satır mesh'te deliktir. Her küpü altı dörtyüzlüye
+bölmek tabloyu tamamen ortadan kaldırır: dörtyüzlünün yalnızca dört köşesi vardır, üç durumu da kod
+içinde türetilebilir. Her küp aynı köşegen etrafında aynı biçimde bölündüğü için komşu küpler ortak
+yüzlerini aynı yerden keser ve sonuç su geçirmezdir. Örneklenen kutunun duvarına dayanan yüzeyler de
+kapatılır, böylece dışa aktarılan model kapalı bir katıdır.
+
+## Kırpma kutusu
+
+NeRF'ler neredeyse her zaman artık bırakır: yeterince fotoğrafın anlaşamadığı boşluklarda yüzen yarı
+saydam lekeler. Kırpma bunun standart temizliğidir — bedava, yeniden eğitim istemez ve çoğu zaman
+"nesne" ile "bulut içindeki nesne" arasındaki farktır. Kutu hem görüntüleyiciye hem de dışa
+aktarılan modele uygulanır; zeminden kurtulmak için genellikle Y alt sınırını yükseltmek yeterlidir.
 
 ## Ekran kartında gerçek zamanlı görüntüleme
 
@@ -115,12 +156,14 @@ ağırlıklarda **tam olarak 0**, eğitilmiş modelde en fazla **1/255**.
 | `src/nerf/field.ts` | Yoğunluk + renk ağlarının birleşimi, ağırlık dışa/içe aktarımı |
 | `src/nerf/volumeRender.ts` | Işın örnekleme, hacimsel harmanlama ve analitik geri yayılımı |
 | `src/nerf/occupancy.ts` | Boş alan atlama ızgarası |
+| `src/nerf/meshExtract.ts` | Marching tetrahedra ile yüzey çıkarımı, sınır kapatma |
 | `src/nerf/trainer.ts` | Işın seçimi, kayıp, optimizasyon adımı, yeni açı üretimi |
 | `src/nerf/camera.ts` | Poz matrisleri, ışın geometrisi, yörünge üreteçleri |
 | `src/nerf/syntheticScene.ts` | Demo sahnesini üreten klasik ışın izleyici |
 | `src/gpu/nerfShader.ts` | Modelin şekli gömülerek üretilen GLSL: hash araması, iki MLP, hacim harmanlama |
 | `src/gpu/GpuNerfRenderer.ts` | Three.js tabanlı gerçek zamanlı görüntüleyici, doku yükleme, yörünge kamerası |
 | `src/worker/` | Eğitim worker'ı ve mesaj sözleşmesi |
+| `src/utils/ply.ts` | Renkli PLY yazıcı (ikili) |
 | `src/components/`, `src/hooks/` | React arayüzü |
 | `dev/parity.html` | GPU ile CPU çıktısını karşılaştıran geliştirme denetimi (üretim derlemesinde yer almaz) |
 
@@ -167,6 +210,11 @@ npm test
 - **Uçtan uca eğitim** — sentetik sahnede eğitim yapılır ve **eğitimde görülmemiş** bir kamera
   açısındaki hatanın gerçekten düştüğü doğrulanır (yalnızca eğitim kaybının düşmesi yeterli
   değildir).
+- **Doğrulama ayrımı** — ayrılan karelerin eğitime hiç karışmadığı, az veride ayırmanın atlandığı ve
+  bu karelerdeki hatanın gerçekten düştüğü kontrol edilir.
+- **Yüzey çıkarımı** — cevabı tam olarak bilinen bir şekle, küreye karşı sınanır: her köşe küre
+  üzerinde mi, her kenar tam iki üçgen tarafından mı paylaşılıyor (su geçirmezlik), yüzler dışarı mı
+  bakıyor ve kapanan hacim analitik değere uyuyor mu.
 - **Gerileme testi** — doluluk ızgarasının hacmin tamamını budayıp eğitimi kalıcı olarak
   öldürmediği kontrol edilir.
 

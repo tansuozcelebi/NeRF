@@ -132,7 +132,12 @@ export class GpuNerfRenderer {
     uniforms.uBackground.value.setRGB(...snapshot.background)
     uniforms.uUseOccupancy.value = snapshot.useOccupancy
     uniforms.uOccupancyRes.value = snapshot.occupancyResolution
+    // Rebuilding the material resets the uniforms, so restore the active crop.
+    this.setBounds(this.boundsMin, this.boundsMax)
   }
+
+  private boundsMin: [number, number, number] = [-1, -1, -1]
+  private boundsMax: [number, number, number] = [1, 1, 1]
 
   private buildMaterial(snapshot: GpuSnapshot, layout: ReturnType<typeof computeShaderLayout>): void {
     this.material?.dispose()
@@ -155,6 +160,8 @@ export class GpuNerfRenderer {
         uTanHalfFovY: { value: 0.5 },
         uAspect: { value: 1 },
         uAabb: { value: snapshot.aabbSize },
+        uBoundsMin: { value: new THREE.Vector3(-snapshot.aabbSize, -snapshot.aabbSize, -snapshot.aabbSize) },
+        uBoundsMax: { value: new THREE.Vector3(snapshot.aabbSize, snapshot.aabbSize, snapshot.aabbSize) },
         uBackground: { value: new THREE.Color(...snapshot.background) },
         uSamples: { value: 48 },
         uMode: { value: 0 },
@@ -224,6 +231,15 @@ export class GpuNerfRenderer {
 
   get ready(): boolean {
     return this.material !== null
+  }
+
+  /** Limits the traversed volume, in world units. */
+  setBounds(min: readonly [number, number, number], max: readonly [number, number, number]): void {
+    this.boundsMin = [min[0], min[1], min[2]]
+    this.boundsMax = [max[0], max[1], max[2]]
+    if (!this.material) return
+    ;(this.material.uniforms.uBoundsMin.value as THREE.Vector3).set(min[0], min[1], min[2])
+    ;(this.material.uniforms.uBoundsMax.value as THREE.Vector3).set(max[0], max[1], max[2])
   }
 
   setMode(mode: RenderMode): void {

@@ -133,7 +133,9 @@ uniform mat3 uCameraBasis;      // camera -> world rotation
 uniform float uTanHalfFovY;
 uniform float uAspect;
 
-uniform float uAabb;            // half-size of the scene box
+uniform float uAabb;            // half-size of the field's coordinate box
+uniform vec3 uBoundsMin;        // crop box actually traversed
+uniform vec3 uBoundsMax;
 uniform vec3 uBackground;
 uniform int uSamples;           // samples per ray
 uniform int uMode;              // 0 = colour, 1 = depth
@@ -267,11 +269,18 @@ void evaluate(vec3 pos, vec3 dir, out float sigma, out vec3 rgb) {
   rgb = 1.0 / (1.0 + exp(-raw));
 }
 
-/** Slab test against the box [-uAabb, uAabb]^3. */
+/**
+ * Slab test against the crop box.
+ *
+ * Only the traversed interval is cropped — positions are still normalised
+ * against the full box, because that is the coordinate system the hash grid was
+ * trained in. Cropping is what removes the floating debris NeRFs leave in empty
+ * space, without retraining anything.
+ */
 bool intersectBox(vec3 o, vec3 d, out float tNear, out float tFar) {
   vec3 inv = 1.0 / d;
-  vec3 t0 = (vec3(-uAabb) - o) * inv;
-  vec3 t1 = (vec3(uAabb) - o) * inv;
+  vec3 t0 = (uBoundsMin - o) * inv;
+  vec3 t1 = (uBoundsMax - o) * inv;
   vec3 lo = min(t0, t1);
   vec3 hi = max(t0, t1);
   tNear = max(max(lo.x, lo.y), lo.z);

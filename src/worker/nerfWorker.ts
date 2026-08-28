@@ -256,6 +256,19 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         ])
         break
       }
+      case 'extractMesh': {
+        if (!trainer) throw new Error('Önce bir model eğitin.')
+        const mesh = trainer.extractMesh({
+          ...request.options,
+          onProgress: (fraction) => post({ type: 'meshProgress', fraction }),
+        })
+        post({ type: 'mesh', mesh }, [
+          mesh.positions.buffer,
+          mesh.indices.buffer,
+          mesh.colors.buffer,
+        ])
+        break
+      }
       case 'exportWeights': {
         if (!trainer) throw new Error('Dışa aktarılacak model yok.')
         const data = trainer.field.exportWeights()

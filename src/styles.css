@@ -1,5 +1,6 @@
 :root {
   /* KREA — kırmızı ve siyah */
+  --validation: #7fd1ff;
   --bg: #0a0708;
   --bg-raised: #141013;
   --bg-sunken: #0d090b;
@@ -761,4 +762,79 @@ body {
 .viewer-quality {
   max-width: 320px;
   margin: 14px auto 0;
+}
+
+.chart-line--validation {
+  stroke: var(--validation);
+  stroke-dasharray: 4 3;
+}
+
+.legend--validation {
+  color: var(--validation);
+}
+
+.legend--validation::before {
+  background: var(--validation);
+}
+
+/* --- crop box & mesh export --- */
+
+.crop {
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-top: 18px;
+}
+
+.crop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.crop-axis {
+  margin-bottom: 10px;
+}
+
+.crop-axis label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.crop-axis output {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.crop-sliders {
+  display: grid;
+  gap: 4px;
+}
+
+.crop-sliders input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.mesh-export {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 16px;
+}
+
+.mesh-export h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.mesh-export-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+  margin-top: 12px;
 }

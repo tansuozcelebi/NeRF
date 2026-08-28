@@ -15,9 +15,10 @@ interface Props {
   nerf: NerfWorkerApi
   fovDegrees: number
   radius: number
+  crop?: { min: [number, number, number]; max: [number, number, number] }
 }
 
-export function Viewer({ nerf, fovDegrees, radius }: Props) {
+export function Viewer({ nerf, fovDegrees, radius, crop }: Props) {
   const support = useMemo(() => describeWebglSupport(), [])
   const [useGpu, setUseGpu] = useState(true)
 
@@ -35,7 +36,7 @@ export function Viewer({ nerf, fovDegrees, radius }: Props) {
   return (
     <>
       {useGpu ? (
-        <GpuViewer nerf={nerf} fovDegrees={fovDegrees} radius={radius} />
+        <GpuViewer nerf={nerf} fovDegrees={fovDegrees} radius={radius} crop={crop} />
       ) : (
         <CpuViewer nerf={nerf} fovDegrees={fovDegrees} radius={radius} />
       )}
@@ -45,7 +46,7 @@ export function Viewer({ nerf, fovDegrees, radius }: Props) {
         </button>
         {useGpu
           ? ' — karşılaştırma için; CPU yolu aynı modeli çok daha yavaş üretir.'
-          : ' — GPU yolu gerçek zamanlı çalışır.'}
+          : ' — GPU yolu gerçek zamanlı çalışır ve kırpma kutusunu uygular.'}
       </p>
     </>
   )
