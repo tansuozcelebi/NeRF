@@ -53,7 +53,12 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
         with:
-          # Depoda Pages kapalıysa bu adım açar; ayarlara elle girmek gerekmez.
+          # Pages kapalıysa bu adım siteyi açmayı dener. Denemenin tutması
+          # GITHUB_TOKEN'ın siteyi oluşturma yetkisine bağlı; yetki yoksa adım
+          # "Resource not accessible by integration" ile düşer ve Pages'in bir
+          # kereye mahsus Settings -> Pages -> Source: GitHub Actions ile elle
+          # açılması gerekir. Site bir kez açıldıktan sonra bu bayrak sessizce
+          # mevcut ayarı okur ve akış kendi başına yürür.
           enablement: true
 
       # Uygulama varlıkları göreli yolla ister (vite.config.ts'te base: './'),
