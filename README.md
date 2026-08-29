@@ -1,6 +1,9 @@
 # KREA NeRF Stüdyo
 
 [![CI](https://github.com/tansuozcelebi/NeRF/actions/workflows/ci.yml/badge.svg)](https://github.com/tansuozcelebi/NeRF/actions/workflows/ci.yml)
+[![Deploy](https://github.com/tansuozcelebi/NeRF/actions/workflows/deploy.yml/badge.svg)](https://github.com/tansuozcelebi/NeRF/actions/workflows/deploy.yml)
+
+**Canlı sürüm: <https://tansuozcelebi.github.io/NeRF/>**
 
 Fotoğraflardan **NeRF (Sinirsel Işıma Alanı / Neural Radiance Fields)** eğiten ve hiç
 fotoğraflanmamış açılardan görüntü sentezleyen bir React uygulaması. Her şey tarayıcıda çalışır —
@@ -220,6 +223,19 @@ npm test
 
 Testler, tip denetimi ve üretim derlemesi her itmede GitHub Actions üzerinde Node 20 ve 22 ile
 çalışır (`.github/workflows/ci.yml`).
+
+## Yayın
+
+`main` dalına giren her değişiklik, **CI yeşil bittikten sonra** GitHub Pages'e yayınlanır
+(`.github/workflows/deploy.yml`). Testleri yayın akışında tekrar koşmak yerine CI'ın sonucunu
+beklemek, aynı işi iki kez yapmadan bozuk bir derlemenin yayına çıkmasını engeller.
+
+Uygulama tamamen statiktir — sunucu tarafı yoktur, eğitim ve görüntüleme ziyaretçinin kendi
+tarayıcısında çalışır. Varlıklar göreli yolla istendiği için (`vite.config.ts` içinde
+`base: './'`) site `/NeRF/` alt dizininde sorunsuz çalışır; bu, alt dizine yayınlanan tek
+sayfalık uygulamalarda en sık kırılan yerdir ve derleme bu koşulda tarayıcıda sınanmıştır.
+
+Elle yayın gerekirse Actions sekmesinden **Deploy** akışı `workflow_dispatch` ile çalıştırılabilir.
 
 ## Sınırlar
 
