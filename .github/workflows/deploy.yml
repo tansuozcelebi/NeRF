@@ -1,0 +1,71 @@
+name: Deploy
+
+# Yayına yalnızca CI yeşil bittikten sonra çıkılır. Testleri burada bir kez daha
+# koşmak yerine CI'ın sonucunu beklemek, aynı işi iki kez yapmadan bozuk bir
+# derlemenin yayına gitmesini engeller.
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# GITHUB_TOKEN'a Pages'e yayın yapma yetkisi verir.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Aynı anda tek bir yayın; sıradaki yayın devam edeni iptal etmez, bekler.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # workflow_run her sonuçta tetiklenir; yalnızca başarılı olanı yayınlıyoruz.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    name: GitHub Pages'e yayınla
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # workflow_run varsayılan dalın ucunu değil, CI'ın koştuğu commit'i
+          # yayınlamalı; ikisi arasında yeni bir itme olmuş olabilir.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Bağımlılıkları yükle
+        run: npm ci
+
+      - name: Pages yapılandır
+        id: pages
+        uses: actions/configure-pages@v5
+        with:
+          # Depoda Pages kapalıysa bu adım açar; ayarlara elle girmek gerekmez.
+          enablement: true
+
+      # Uygulama varlıkları göreli yolla ister (vite.config.ts'te base: './'),
+      # bu yüzden proje sitesinin /NeRF/ alt dizininde sorunsuz çalışır.
+      - name: Üretim derlemesi
+        run: npm run build
+
+      - name: Derlemeyi yükle
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Yayınla
+        id: deployment
+        uses: actions/deploy-pages@v4
