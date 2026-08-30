@@ -251,6 +251,11 @@ Actions** seçilir; ardından Actions sekmesinden **Deploy** akışı bir kez el
 Bu adım yalnızca ilk yayında gerekir — site açıldıktan sonra `main`'e giren her değişiklik
 kendiliğinden yayınlanır.
 
+Bu ayarı açarken GitHub, hazır bir Jekyll şablon akışı eklemeyi önerir. Bu depoda o akış
+işe yaramaz: uygulama Vite ile derleniyor, Jekyll ise deponun ham hâlini yayınlar. Üstelik
+iki akış aynı `pages` hedefine yazdığı için hangisi sonra biterse site o olur. Şablon akışı
+eklendiyse silinmelidir; yayını `deploy.yml` yapar.
+
 ## Sınırlar
 
 - Eğitim işlemci üzerinde yürür; bu yüzden eğitim çözünürlükleri küçük (48–160 piksel) tutulmuştur.
