@@ -237,6 +237,25 @@ sayfalık uygulamalarda en sık kırılan yerdir ve derleme bu koşulda tarayıc
 
 Elle yayın gerekirse Actions sekmesinden **Deploy** akışı `workflow_dispatch` ile çalıştırılabilir.
 
+### Bir kereye mahsus kurulum
+
+Pages'in depoda açık olması gerekir. Akıştaki `configure-pages` adımı bunu kendisi açmayı
+dener, ancak `GITHUB_TOKEN` site oluşturmaya yetkili değilse adım şu hatayla düşer:
+
+```
+Create Pages site failed. Error: Resource not accessible by integration
+```
+
+Bu durumda depo ayarlarından **Settings → Pages → Build and deployment → Source: GitHub
+Actions** seçilir; ardından Actions sekmesinden **Deploy** akışı bir kez elle çalıştırılır.
+Bu adım yalnızca ilk yayında gerekir — site açıldıktan sonra `main`'e giren her değişiklik
+kendiliğinden yayınlanır.
+
+Bu ayarı açarken GitHub, hazır bir Jekyll şablon akışı eklemeyi önerir. Bu depoda o akış
+işe yaramaz: uygulama Vite ile derleniyor, Jekyll ise deponun ham hâlini yayınlar. Üstelik
+iki akış aynı `pages` hedefine yazdığı için hangisi sonra biterse site o olur. Şablon akışı
+eklendiyse silinmelidir; yayını `deploy.yml` yapar.
+
 ## Sınırlar
 
 - Eğitim işlemci üzerinde yürür; bu yüzden eğitim çözünürlükleri küçük (48–160 piksel) tutulmuştur.
